@@ -1,0 +1,8 @@
+# Prisma generated files
+# Generated Prisma Client (in case you want to ignore it)
+# node_modules/prisma/
+
+# Environment files (should already be gitignored at root)
+.env.local
+.env.*.local
+

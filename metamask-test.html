@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaMask Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #f6851b;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #e2761b;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            background: #e8f4fd;
+        }
+        .error {
+            background: #ffe6e6;
+            color: #d32f2f;
+        }
+        .success {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        .info {
+            background: #fff3cd;
+            color: #856404;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 MetaMask Connection Test</h1>
+        <p>This page tests if MetaMask opens properly when requesting connection.</p>
+        
+        <div id="status" class="status info">
+            Ready to test MetaMask connection
+        </div>
+        
+        <button id="connectBtn" onclick="connectWallet()">
+            Connect MetaMask
+        </button>
+        
+        <button id="checkBtn" onclick="checkMetaMask()">
+            Check MetaMask Status
+        </button>
+        
+        <div id="details"></div>
+    </div>
+
+    <script>
+        let isConnecting = false;
+        
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+        
+        function updateDetails(content) {
+            document.getElementById('details').innerHTML = content;
+        }
+        
+        function checkMetaMask() {
+            updateStatus('Checking MetaMask status...', 'info');
+            
+            if (typeof window.ethereum === 'undefined') {
+                updateStatus('❌ MetaMask is not installed!', 'error');
+                updateDetails(`
+                    <h3>MetaMask Not Found</h3>
+                    <p>Please install MetaMask browser extension:</p>
+                    <ul>
+                        <li><a href="https://metamask.io/download/" target="_blank">Download MetaMask</a></li>
+                        <li>Install the browser extension</li>
+                        <li>Refresh this page</li>
+                    </ul>
+                `);
+                return;
+            }
+            
+            const details = `
+                <h3>MetaMask Status</h3>
+                <pre>Provider: ${window.ethereum ? 'Found' : 'Not found'}
+Is MetaMask: ${window.ethereum.isMetaMask ? 'Yes' : 'No'}
+Provider ID: ${window.ethereum.isMetaMask ? 'MetaMask' : 'Unknown'}
+Version: ${window.ethereum.version || 'Unknown'}</pre>
+            `;
+            
+            updateDetails(details);
+            updateStatus('✅ MetaMask is installed and ready', 'success');
+        }
+        
+        async function connectWallet() {
+            if (isConnecting) {
+                updateStatus('Already connecting...', 'info');
+                return;
+            }
+            
+            isConnecting = true;
+            const connectBtn = document.getElementById('connectBtn');
+            connectBtn.disabled = true;
+            connectBtn.textContent = 'Connecting...';
+            
+            try {
+                updateStatus('🔗 Requesting MetaMask connection...', 'info');
+                
+                // Check if MetaMask is installed
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error('MetaMask is not installed');
+                }
+                
+                console.log('🌐 Ethereum provider:', window.ethereum);
+                console.log('🔍 Is MetaMask:', window.ethereum.isMetaMask);
+                console.log('📱 Calling eth_requestAccounts - MetaMask should open now...');
+                
+                // Request account access - this should open MetaMask
+                const accounts = await window.ethereum.request({
+                    method: 'eth_requestAccounts',
+                });
+                
+                if (!accounts || accounts.length === 0) {
+                    throw new Error('No accounts returned');
+                }
+                
+                const address = accounts[0];
+                console.log('✅ Wallet connected:', address);
+                
+                // Get additional info
+                const chainId = await window.ethereum.request({
+                    method: 'eth_chainId',
+                });
+                
+                const balance = await window.ethereum.request({
+                    method: 'eth_getBalance',
+                    params: [address, 'latest'],
+                });
+                
+                const balanceInEth = (parseInt(balance, 16) / Math.pow(10, 18)).toFixed(4);
+                
+                const details = `
+                    <h3>✅ Connection Successful!</h3>
+                    <pre>Address: ${address}
+Chain ID: ${parseInt(chainId, 16)}
+Balance: ${balanceInEth} ETH
+Network: ${parseInt(chainId, 16) === 50312 ? 'Somnia Testnet' : 'Other'}</pre>
+                `;
+                
+                updateDetails(details);
+                updateStatus(`✅ Connected to ${address}`, 'success');
+                
+            } catch (error) {
+                console.error('❌ Connection failed:', error);
+                
+                let errorMessage = 'Connection failed';
+                if (error.code === 4001) {
+                    errorMessage = 'Connection rejected by user';
+                } else if (error.code === -32002) {
+                    errorMessage = 'Connection request already pending';
+                } else if (error.message.includes('not installed')) {
+                    errorMessage = 'MetaMask is not installed';
+                } else {
+                    errorMessage = error.message || 'Unknown error';
+                }
+                
+                updateStatus(`❌ ${errorMessage}`, 'error');
+                updateDetails(`
+                    <h3>❌ Connection Failed</h3>
+                    <pre>Error: ${errorMessage}
+Code: ${error.code || 'N/A'}
+Message: ${error.message || 'N/A'}</pre>
+                `);
+            } finally {
+                isConnecting = false;
+                connectBtn.disabled = false;
+                connectBtn.textContent = 'Connect MetaMask';
+            }
+        }
+        
+        // Auto-check MetaMask on page load
+        window.addEventListener('load', () => {
+            checkMetaMask();
+        });
+        
+        // Listen for account changes
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                console.log('🔄 Account changed:', accounts);
+                if (accounts.length === 0) {
+                    updateStatus('Wallet disconnected', 'info');
+                    updateDetails('<h3>Wallet Disconnected</h3><p>User disconnected wallet in MetaMask</p>');
+                } else {
+                    updateStatus(`Account switched to: ${accounts[0]}`, 'success');
+                }
+            });
+            
+            window.ethereum.on('chainChanged', (chainId) => {
+                console.log('🔄 Chain changed:', parseInt(chainId, 16));
+                updateStatus(`Network changed to Chain ID: ${parseInt(chainId, 16)}`, 'info');
+            });
+        }
+    </script>
+</body>
+</html>

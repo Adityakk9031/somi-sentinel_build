@@ -1,0 +1,104 @@
+// Prisma Schema for SOMI Sentinel
+// This schema defines the database models for vaults, policies, proposals, and audit events
+// 
+// To use this with your database:
+// 1. Set DATABASE_URL in your .env file (e.g., postgresql://user:password@localhost:5432/somi_sentinel)
+// 2. Run: npx prisma generate
+// 3. Run: npx prisma migrate dev --name init
+// 4. Run: npm run prisma:seed
+//
+// For Supabase/PostgreSQL hosted databases, use your connection string in the format:
+// postgresql://postgres:password@host:5432/database?schema=public
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String   @id @default(uuid())
+  walletAddress String   @unique
+  displayName   String?
+  createdAt     DateTime @default(now())
+
+  @@map("users")
+}
+
+model Vault {
+  id              String     @id @default(uuid())
+  vaultAddress    String     @unique // On-chain vault contract address
+  ownerWallet     String     // Wallet address of vault owner
+  name            String?
+  description     String?
+  supportedTokens Json?      // Array of token addresses and symbols
+  totalValueUsd   Float?
+  onchainCreatedAt DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  policies Policy[]
+  proposals Proposal[]
+
+  @@index([vaultAddress])
+  @@map("vaults")
+}
+
+model Policy {
+  id            String   @id @default(uuid())
+  vaultAddress  String   // Foreign key to Vault.vaultAddress
+  policyJson    Json     // Policy configuration as JSON
+  active        Boolean  @default(true)
+  version       Int      @default(1)
+  setBy         String?  // Wallet address that set this policy
+  deployedTx    String?  // Transaction hash of policy deployment
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vault Vault? @relation(fields: [vaultAddress], references: [vaultAddress])
+
+  @@index([vaultAddress])
+  @@map("policies")
+}
+
+model Proposal {
+  id              String   @id @default(uuid())
+  proposalHash    String   @unique // On-chain proposal hash
+  vaultAddress    String?  // Foreign key to Vault.vaultAddress
+  agentAddress    String?  // Agent wallet address
+  ipfsCid         String?  // IPFS content ID for proposal details
+  encodedProposal String?  // Encoded proposal data (bytes as hex string)
+  signature       String?  // Agent signature
+  status          String   @default("pending") // pending, executed, rejected
+  createdAt       DateTime @default(now())
+  executedTx      String?  // Transaction hash when executed
+  executedAt      DateTime?
+
+  vault Vault? @relation(fields: [vaultAddress], references: [vaultAddress])
+
+  @@index([vaultAddress])
+  @@index([proposalHash])
+  @@index([createdAt])
+  @@index([status])
+  @@map("proposals")
+}
+
+model AuditEvent {
+  id            Int      @id @default(autoincrement())
+  vaultAddress  String?
+  eventName     String
+  ipfsCid       String?
+  txHash        String
+  blockNumber   BigInt
+  rawEvent      Json     // Full event data as JSON
+  createdAt     DateTime @default(now())
+
+  @@index([vaultAddress])
+  @@index([txHash])
+  @@index([createdAt])
+  @@map("audit_events")
+}
+
